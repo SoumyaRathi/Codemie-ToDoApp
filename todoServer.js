@@ -6,15 +6,16 @@ const path = require("path");
 const crypto = require('crypto');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.static('public'));
 app.use(express.json());
 app.use(cors());
 
-const TODOS_FILE = path.join(__dirname, 'todos.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
-const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
+const DATA_DIR = process.env.TODO_DATA_DIR || __dirname;
+const TODOS_FILE = path.join(DATA_DIR, 'todos.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
 function readTodos() {
   try {
@@ -282,6 +283,10 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`App is listening on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`App is listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
