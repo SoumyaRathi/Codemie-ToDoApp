@@ -43,8 +43,27 @@ function fetchAndRenderTodos() {
     .catch(err => alert(err.message));
 }
 
+function isValidDueDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(y, m - 1, d));
+  return parsed.getUTCFullYear() === y && parsed.getUTCMonth() === m - 1 && parsed.getUTCDate() === d;
+}
+
+// Valid due dates first (earliest to latest), missing/invalid last; ties broken by id ascending.
+function sortByDueDate(todos) {
+  return [...todos].sort((a, b) => {
+    const aValid = isValidDueDate(a.dueDate);
+    const bValid = isValidDueDate(b.dueDate);
+    if (aValid && bValid && a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
+    if (aValid !== bValid) return aValid ? -1 : 1;
+    return a.id - b.id;
+  });
+}
+
 function renderTodos(data) {
   setLoading(false);
+  if (currentSort === 'dueDate' && Array.isArray(data)) data = sortByDueDate(data);
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
