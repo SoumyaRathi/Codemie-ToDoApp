@@ -39,6 +39,8 @@ Repo note: Backend already supports `GET /todos?sort=dueDate` with missing-last 
      - Orders by dueDate ascending (earliest first).
      - Places todos with missing dueDate after all todos with dueDate.
      - Uses deterministic tie-breaker (id ascending) for equal due dates and for both-missing cases.
+   - Note on invalid/malformed dueDate values:
+     - Backend validates dueDate on create/update; falsy/invalid values are treated as missing and sorted last.
 
 ## 6. QA Sequence
 1. Local run
@@ -68,7 +70,9 @@ Repo note: Backend already supports `GET /todos?sort=dueDate` with missing-last 
 - Risk: Users may expect due date visibility in the UI cards, but this story is only about sorting.
   - Mitigation: Keep scope strictly to sort option per KAN-144.
 - Risk: Legacy/malformed dueDate values (manual edits) could cause inconsistent ordering.
-  - Mitigation: Backend validates dueDate on create/update; for falsy values, comparator treats as missing and sorts last.
+  - Mitigation: Backend validates dueDate on write; for falsy/invalid values, comparator treats as missing and sorts last.
+- Risk: Non-deterministic ordering in ties could cause flicker across refreshes.
+  - Mitigation: Ensure comparator tie-breaks by id ascending for stable ordering.
 
 ## 8. Acceptance Criteria (Gherkin) mapping
 - User can choose "Sort by due date" in the todos list UI
@@ -92,4 +96,5 @@ Repo note: Backend already supports `GET /todos?sort=dueDate` with missing-last 
 ## 9. Handoff Summary
 - UI: Add a new sort dropdown option "Sort by Due Date".
 - API: Use existing backend support `GET /todos?sort=dueDate`.
+- Behavior: Earliest due date first; todos without due dates sorted last; stable ordering via id tie-breaker; invalid dueDate treated as missing.
 - QA: Verify option presence, ordering rules (ascending + missing-last), determinism for ties, and regressions for other sort modes.
