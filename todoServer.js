@@ -100,6 +100,12 @@ function parseDueDate(input) {
   return { provided: true, valid: true, value: input };
 }
 
+// Returns a valid YYYY-MM-DD string, or null for missing/empty/malformed values.
+function normalizeDueDate(input) {
+  const parsed = parseDueDate(input);
+  return parsed.valid && parsed.value ? parsed.value : null;
+}
+
 // Signup
 app.post('/signup', (req, res) => {
   const { name, email, password } = req.body;
@@ -169,15 +175,16 @@ app.get('/todos', requireAuth, (req, res) => {
   if (sort === 'createdAt') todos = todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (sort === 'updatedAt') todos = todos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   if (sort === 'dueDate') {
+    // sortDir is optional; anything other than 'desc' keeps the default ascending order.
+    const dir = req.query.sortDir === 'desc' ? -1 : 1;
     todos = todos.sort((a, b) => {
-      if (a.dueDate && b.dueDate) {
-        if (a.dueDate < b.dueDate) return -1;
-        if (a.dueDate > b.dueDate) return 1;
-        return a.id - b.id;
-      }
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return a.id - b.id;
+      const da = normalizeDueDate(a.dueDate);
+      const db = normalizeDueDate(b.dueDate);
+      if (da === db) return a.id - b.id;
+      // Missing/invalid due dates: last when ascending, first when descending.
+      if (da === null) return dir;
+      if (db === null) return -dir;
+      return da < db ? -dir : dir;
     });
   }
   res.status(200).json(todos);
