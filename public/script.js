@@ -46,6 +46,16 @@ function fetchAndRenderTodos() {
 function renderTodos(data) {
   setLoading(false);
   currentTodos = data;
+  const sortSelect = document.getElementById('sort-select');
+  const dueDateOption = sortSelect.querySelector('option[value="dueDate"]');
+  const hasAnyDueDate = data.some(t => t.dueDate);
+  if (dueDateOption) dueDateOption.disabled = !hasAnyDueDate;
+  if (!hasAnyDueDate && currentSort === 'dueDate') {
+    currentSort = 'createdAt';
+    sortSelect.value = 'createdAt';
+    fetchAndRenderTodos();
+    return;
+  }
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
   if (!data.length) {
