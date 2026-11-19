@@ -65,7 +65,7 @@ test.describe('KAN-152 E2E: Due date sort', () => {
     await selectDueDateSort(page);
     await expect(sort).toHaveValue('dueDate');
     await expect(page.locator('#filter-sort-feedback')).toContainText(`Sort: ${SORT_LABEL}`);
-    await page.screenshot({ path: path.join(SHOT_DIR, 'ac1-sort-control.png') });
+    await page.screenshot({ path: path.join(SHOT_DIR, 'ac1-sort-control.png'), animations: 'disabled' });
   });
 
   test('[E2E-AC2-01] Selecting "Due date" reorders todos by due date ascending', async ({ page, request }) => {
@@ -81,7 +81,7 @@ test.describe('KAN-152 E2E: Due date sort', () => {
 
     await selectDueDateSort(page);
     await expect(titles(page)).toHaveText(['QA Soonest', 'QA Middle', 'QA Later', WELCOME]);
-    await page.screenshot({ path: path.join(SHOT_DIR, 'ac2-sorted-by-due-date.png') });
+    await page.screenshot({ path: path.join(SHOT_DIR, 'ac2-sorted-by-due-date.png'), animations: 'disabled' });
   });
 
   test('[E2E-AC2-02] Due date sort stays applied after a page reload (session persistence)', async ({ page, request }) => {
@@ -117,7 +117,7 @@ test.describe('KAN-152 E2E: Due date sort', () => {
     for (const t of ['QA Undated A', 'QA Undated B', WELCOME]) {
       await expect(page.getByTestId('todo-card').filter({ hasText: t }).first()).toBeVisible();
     }
-    await page.screenshot({ path: path.join(SHOT_DIR, 'ac3-undated-last.png') });
+    await page.screenshot({ path: path.join(SHOT_DIR, 'ac3-undated-last.png'), animations: 'disabled' });
   });
 
   test('[E2E-AC3-02] Placement of undated todos is deterministic across re-sorts and reloads', async ({ page, request }) => {
