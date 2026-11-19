@@ -5,12 +5,17 @@
   "main": "index.js",
   "scripts": {
     "start": "nodemon todoServer.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "npm run test:unit && npm run test:api && npm run test:e2e",
+    "test:unit": "node --test \"test/*.test.js\"",
+    "test:api": "jest --config jest.config.js",
+    "test:e2e": "playwright test --config playwright.config.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "jest": "^30.5.2",
     "nodemon": "^3.0.1",
     "supertest": "^6.3.3"
   },
