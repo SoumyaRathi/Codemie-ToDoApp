@@ -52,7 +52,7 @@ A modern, full-featured To-Do application built with Node.js, Express, and a bea
 - **Sign Up:** Register with your name, email, and password.
 - **Login:** Use your email and password to log in.
 - **Manage To-Dos:** Add, edit, delete, and mark to-dos as complete/incomplete.
-- **Search/Filter/Sort:** Use the controls to find and organize your tasks.
+- **Search/Filter/Sort:** Use the controls to find and organize your tasks. Sort by Created, Updated, Title, or Due date (earliest first; todos without a due date appear last).
 - **Session:** The app shows who is logged in in the header.
 
 ## 🤝 Contributing
