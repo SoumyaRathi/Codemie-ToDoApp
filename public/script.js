@@ -160,6 +160,7 @@ function setAuth(token, name, email) {
   localStorage.setItem('name', name);
   localStorage.setItem('email', email);
   document.getElementById('logout-btn').style.display = '';
+  document.getElementById('change-password-btn').style.display = '';
   document.getElementById('add-todo-btn').style.display = '';
   document.querySelector('.outputData').style.display = '';
   document.getElementById('user-info').textContent = `${name} (${email})`;
@@ -172,6 +173,8 @@ function showAuthButtons() {
   loginBtn.style.display = '';
   registerBtn.style.display = '';
   document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('change-password-btn').style.display = 'none';
+  closeChangePasswordModal();
   document.getElementById('add-todo-btn').style.display = 'none';
   document.querySelector('.outputData').style.display = 'none';
   // Always attach listeners when showing
@@ -188,9 +191,66 @@ function hideAuthButtons() {
   document.getElementById('login-btn').style.display = 'none';
   document.getElementById('register-btn').style.display = 'none';
   document.getElementById('logout-btn').style.display = '';
+  document.getElementById('change-password-btn').style.display = '';
   document.getElementById('add-todo-btn').style.display = '';
   document.querySelector('.outputData').style.display = '';
 }
+
+// --- CHANGE PASSWORD ---
+function showChangePasswordMessage(text, isSuccess) {
+  const el = document.getElementById('change-password-message');
+  el.textContent = text;
+  el.style.color = isSuccess ? '#2e7d32' : '#c00';
+  el.style.display = 'block';
+}
+function showChangePasswordModal() {
+  if (!authToken) return;
+  document.getElementById('change-password-form').reset();
+  document.getElementById('change-password-message').style.display = 'none';
+  const modal = document.getElementById('change-password-modal');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.style.display = 'flex';
+  setTimeout(() => document.getElementById('current-password').focus(), 100);
+}
+function closeChangePasswordModal() {
+  const modal = document.getElementById('change-password-modal');
+  modal.setAttribute('aria-hidden', 'true');
+  modal.style.display = 'none';
+}
+function submitChangePassword(e) {
+  e.preventDefault();
+  const currentPassword = document.getElementById('current-password').value;
+  const newPassword = document.getElementById('new-password').value;
+  const confirmNewPassword = document.getElementById('confirm-new-password').value;
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    showChangePasswordMessage('All fields are required.', false);
+    return;
+  }
+  if (newPassword !== confirmNewPassword) {
+    showChangePasswordMessage('New password and confirmation do not match.', false);
+    return;
+  }
+  fetchWithAuth(`${API_BASE}/me/password`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword })
+  })
+    .then(resp => resp.json().then(data => ({ status: resp.status, data })))
+    .then(({ status, data }) => {
+      if (status === 200) {
+        closeChangePasswordModal();
+        clearAuth();
+        showAuthModal(false);
+        const authError = document.getElementById('auth-error');
+        authError.textContent = 'Password updated. Please login with your new password.';
+        authError.style.display = 'block';
+      } else {
+        showChangePasswordMessage(data.error || 'Failed to change password.', false);
+      }
+    })
+    .catch(() => showChangePasswordMessage('Network error.', false));
+}
+
 function clearAuth() {
   authToken = null;
   currentName = null;
@@ -412,6 +472,13 @@ document.addEventListener('DOMContentLoaded', function() {
         showAuthModal(false);
       });
   };
+  // Change password
+  document.getElementById('change-password-btn').onclick = showChangePasswordModal;
+  document.getElementById('close-change-password').onclick = closeChangePasswordModal;
+  document.getElementById('change-password-form').onsubmit = submitChangePassword;
+  window.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeChangePasswordModal();
+  });
   // Close auth modal on outside click
   window.onclick = function(event) {
     const modal = document.getElementById('edit-modal');

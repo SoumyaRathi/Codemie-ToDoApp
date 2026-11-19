@@ -12,9 +12,10 @@ app.use(express.static('public'));
 app.use(express.json());
 app.use(cors());
 
-const TODOS_FILE = path.join(__dirname, 'todos.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
-const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const TODOS_FILE = path.join(DATA_DIR, 'todos.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
 function readTodos() {
   try {
@@ -155,6 +156,43 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function validatePasswordPolicy(password) {
+  if (typeof password !== 'string' || password.length < 8) {
+    return { valid: false, message: 'New password must be at least 8 characters long.' };
+  }
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    return { valid: false, message: 'New password must contain at least one letter and one number.' };
+  }
+  return { valid: true };
+}
+
+// PUT /me/password - Change password for the logged-in user
+app.put('/me/password', requireAuth, (req, res) => {
+  const { currentPassword, newPassword, confirmNewPassword } = req.body || {};
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    return res.status(400).json({ error: 'Current password, new password, and confirmation are required.' });
+  }
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || typeof confirmNewPassword !== 'string') {
+    return res.status(400).json({ error: 'Invalid input.' });
+  }
+  if (newPassword !== confirmNewPassword) {
+    return res.status(400).json({ error: 'New password and confirmation do not match.' });
+  }
+  const users = readUsers();
+  const user = users.find(u => u.id === req.userId);
+  if (!user || user.password !== hashPassword(currentPassword)) {
+    return res.status(401).json({ error: 'Current password is incorrect.' });
+  }
+  const policy = validatePasswordPolicy(newPassword);
+  if (!policy.valid) return res.status(400).json({ error: policy.message });
+  user.password = hashPassword(newPassword);
+  if (!writeUsers(users)) return res.status(500).json({ error: 'Failed to update password.' });
+  const sessions = readSessions();
+  delete sessions[req.headers['authorization']];
+  writeSessions(sessions);
+  res.status(200).json({ message: 'Password updated.' });
+});
+
 // GET /todos - Retrieve all todo items, with optional search/filter/sort
 app.get('/todos', requireAuth, (req, res) => {
   let todos = readTodos().filter(t => t.userId === req.userId);
@@ -282,6 +320,10 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`App is listening on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`App is listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
