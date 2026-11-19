@@ -14,7 +14,27 @@ const API_BASE = window.location.origin;
 // State
 let currentTodos = [];
 let currentFilter = 'all';
-let currentSort = 'createdAt';
+const SORT_STORAGE_KEY = 'todoapp.sort';
+const ALLOWED_SORTS = ['createdAt', 'updatedAt', 'title', 'dueDate'];
+
+function loadStoredSort() {
+  try {
+    const stored = sessionStorage.getItem(SORT_STORAGE_KEY);
+    return ALLOWED_SORTS.includes(stored) ? stored : 'createdAt';
+  } catch (e) {
+    return 'createdAt';
+  }
+}
+
+function saveSort(sort) {
+  try {
+    sessionStorage.setItem(SORT_STORAGE_KEY, sort);
+  } catch (e) {
+    // sessionStorage unavailable; sort just won't persist
+  }
+}
+
+let currentSort = loadStoredSort();
 let currentSearch = '';
 let editingTodoId = null;
 let isLoading = false;
@@ -55,6 +75,7 @@ function renderTodos(data) {
   data.forEach(element => {
     const card = document.createElement('div');
     card.className = 'output' + (element.completed ? ' completed' : '');
+    card.setAttribute('data-testid', 'todo-card');
     // Status badge
     const badge = document.createElement('span');
     badge.className = 'status-badge ' + (element.completed ? 'completed' : 'active');
@@ -62,6 +83,7 @@ function renderTodos(data) {
     // Title
     const title = document.createElement('p');
     title.id = 'title';
+    title.setAttribute('data-testid', 'todo-title');
     title.textContent = element.title;
     // Description
     const desc = document.createElement('p');
@@ -322,6 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   document.getElementById('sort-select').onchange = function(e) {
     currentSort = e.target.value;
+    saveSort(currentSort);
     fetchAndRenderTodos();
   };
   // Clear search button
@@ -343,11 +366,13 @@ document.addEventListener('DOMContentLoaded', function() {
     currentSearch = '';
     currentFilter = 'all';
     currentSort = 'createdAt';
+    saveSort(currentSort);
     document.getElementById('search-input').value = '';
     document.getElementById('filter-select').value = 'all';
     document.getElementById('sort-select').value = 'createdAt';
     fetchAndRenderTodos();
   };
+  document.getElementById('sort-select').value = currentSort;
   // Initial load
   fetchAndRenderTodos();
   // Hide todo UI if not logged in
