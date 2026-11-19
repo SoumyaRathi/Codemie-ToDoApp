@@ -75,6 +75,7 @@ function renderTodos(data) {
   data.forEach(element => {
     const card = document.createElement('div');
     card.className = 'output' + (element.completed ? ' completed' : '');
+    card.setAttribute('data-testid', 'todo-card');
     // Status badge
     const badge = document.createElement('span');
     badge.className = 'status-badge ' + (element.completed ? 'completed' : 'active');
@@ -82,6 +83,7 @@ function renderTodos(data) {
     // Title
     const title = document.createElement('p');
     title.id = 'title';
+    title.setAttribute('data-testid', 'todo-title');
     title.textContent = element.title;
     // Description
     const desc = document.createElement('p');
