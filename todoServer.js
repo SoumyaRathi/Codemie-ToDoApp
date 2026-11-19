@@ -169,14 +169,20 @@ app.get('/todos', requireAuth, (req, res) => {
   if (sort === 'createdAt') todos = todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (sort === 'updatedAt') todos = todos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   if (sort === 'dueDate') {
+    const validDue = (t) => {
+      const p = parseDueDate(t.dueDate);
+      return p.valid && p.value ? p.value : null;
+    };
     todos = todos.sort((a, b) => {
-      if (a.dueDate && b.dueDate) {
-        if (a.dueDate < b.dueDate) return -1;
-        if (a.dueDate > b.dueDate) return 1;
+      const da = validDue(a);
+      const db = validDue(b);
+      if (da && db) {
+        if (da < db) return -1;
+        if (da > db) return 1;
         return a.id - b.id;
       }
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
+      if (da) return -1;
+      if (db) return 1;
       return a.id - b.id;
     });
   }
