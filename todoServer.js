@@ -12,9 +12,9 @@ app.use(express.static('public'));
 app.use(express.json());
 app.use(cors());
 
-const TODOS_FILE = path.join(__dirname, 'todos.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
-const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
+const TODOS_FILE = process.env.TODOS_FILE || path.join(__dirname, 'todos.json');
+const USERS_FILE = process.env.USERS_FILE || path.join(__dirname, 'users.json');
+const SESSIONS_FILE = process.env.SESSIONS_FILE || path.join(__dirname, 'sessions.json');
 
 function readTodos() {
   try {
@@ -155,6 +155,18 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Due date ascending (YYYY-MM-DD); undated last; ties and both-undated broken by id ascending.
+function compareByDueDate(a, b) {
+  if (a.dueDate && b.dueDate) {
+    if (a.dueDate < b.dueDate) return -1;
+    if (a.dueDate > b.dueDate) return 1;
+    return a.id - b.id;
+  }
+  if (a.dueDate) return -1;
+  if (b.dueDate) return 1;
+  return a.id - b.id;
+}
+
 // GET /todos - Retrieve all todo items, with optional search/filter/sort
 app.get('/todos', requireAuth, (req, res) => {
   let todos = readTodos().filter(t => t.userId === req.userId);
@@ -168,18 +180,7 @@ app.get('/todos', requireAuth, (req, res) => {
   if (sort === 'title') todos = todos.sort((a, b) => a.title.localeCompare(b.title));
   if (sort === 'createdAt') todos = todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (sort === 'updatedAt') todos = todos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  if (sort === 'dueDate') {
-    todos = todos.sort((a, b) => {
-      if (a.dueDate && b.dueDate) {
-        if (a.dueDate < b.dueDate) return -1;
-        if (a.dueDate > b.dueDate) return 1;
-        return a.id - b.id;
-      }
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return a.id - b.id;
-    });
-  }
+  if (sort === 'dueDate') todos = todos.sort(compareByDueDate);
   res.status(200).json(todos);
 });
 
@@ -282,6 +283,10 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`App is listening on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`App is listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = { app, compareByDueDate };
