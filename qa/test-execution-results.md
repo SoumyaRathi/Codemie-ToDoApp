@@ -1,104 +1,129 @@
-# KAN-154 QA Test Execution Results
+# KAN-155 QA Test Execution Results
 
-Story: KAN-154 - Add "Sort by due date" option in todos list UI
-PR: https://github.com/SoumyaRathi/Codemie-ToDoApp/pull/18 (branch `KAN-154`)
+Story: KAN-155 - Expose due date in Create/Edit Todo UI (https://soumyarathi57.atlassian.net/browse/KAN-155)
+PR: #19 https://github.com/SoumyaRathi/Codemie-ToDoApp/pull/19 (branch `KAN-155`)
+
+(This file replaces the KAN-154 report, which remains available in git history.)
 
 ## Summary
 
-| Suite | Total | Passed | Failed | Blocked | Skipped |
+| Suite | Total | Passed | Failed | Skipped | Blocked |
 |-------|------:|-------:|-------:|--------:|--------:|
-| API (Jest + Supertest) | 9 | 9 | 0 | 0 | 0 |
-| E2E (Playwright, Chromium) | 8 | 8 | 0 | 0 | 0 |
-| Unit/client (node:test, added in the review-fix commit) | 18 | 18 | 0 | 0 | 0 |
-| **Overall (`npm test`)** | **35** | **35** | **0** | **0** | **0** |
+| API (Jest + Supertest) | 46 | 46 | 0 | 0 | 0 |
+| E2E (Playwright, Chromium) | 27 | 27 | 0 | 0 | 0 |
+| **Overall (API + E2E)** | **73** | **73** | **0** | **0** | **0** |
+| Unit/client (`node --test`, pre-existing, regression run) | 18 | 18 | 0 | 0 | 0 |
 
-Required QA suites only (API + E2E): 17 total, 17 passed, 0 failed, 0 blocked, 0 skipped.
+Of the 73 API + E2E tests, 56 are new for KAN-155 (37 API + 19 E2E). The other 17 are the KAN-154 regression tests (9 API + 8 E2E), which still pass.
+Counting the 18 pre-existing unit tests as well (`npm test`): 91 total, 91 passed.
 
 **QA Status: PASSED**
 
 ## Tested commit
 
-`784c27febe961a424e9860f323c30d66e72d0a95` (`git rev-parse HEAD` at the time of the run, clean tracked tree).
-This report was added in the commit after it, so it cannot contain its own SHA.
+`5d2507f6e3fd3b2dc5073ba2dd67c909a5a76e85` (`git rev-parse HEAD`). The two new test files were untracked at run time and are committed right after this SHA together with this report (a report cannot contain its own commit SHA). No application code was changed by the QA step.
 
 ## Environment
 
-- Date/time: 2026-11-19 19:49-19:50 +05:30
-- OS: Microsoft Windows 11 Enterprise 10.0.26200 (shell: Git Bash / MINGW64)
+- Date/time: 2026-11-25 16:46 +05:30 (start of the final run)
+- OS: Microsoft Windows 11 Enterprise, Version 10.0.26200.9974 (shell: Git Bash)
 - Node: v24.21.0
 - npm: 11.19.0
-- Jest 30.5.2, Playwright 1.65.1 (Chromium)
+- Jest 30.5.2, Supertest 6.3.3, Playwright 1.65.1 (Chromium)
 
 ## Commands executed (in order)
 
 ```
 git fetch origin
-git checkout KAN-154 && git pull          # up to date with origin/KAN-154
-npm install -D jest @playwright/test      # added the two devDependencies
-npx playwright install chromium
+git branch --show-current            # KAN-155
+git pull                             # Already up to date
 npm install
-npx playwright install chromium
+npx playwright install chromium      # no download needed, browser already installed
+npx jest --config jest.config.js test/api/dueDateCrud.test.js     # development run of the new API file
+npx playwright test --config playwright.config.js dueDateUi        # development run of the new E2E file
 npm run test:api
 npm run test:e2e
-npm test                                  # test:unit && test:api && test:e2e
+npm run test:unit
 ```
 
-All commands exited with code 0.
+`package.json` needed no change: the `test`, `test:unit`, `test:api` and `test:e2e` scripts, the Jest/Supertest/Playwright devDependencies and the untouched `start` script were already added on this branch's base by KAN-154.
+The E2E server is started by `playwright.config.js` (`webServer`) on port 3101 with an isolated temp data directory (`TODO_DATA_DIR`) so it cannot clash with a dev server on port 3000 and never touches the repo's `todos.json`/`users.json`/`sessions.json`. API tests import the exported Express `app` (no listening port) with their own temp data directory.
 
-Scripts added to `package.json`:
+## Files added
 
-- `test`: `npm run test:unit && npm run test:api && npm run test:e2e`
-- `test:unit`: `node --test "test/*.test.js"`
-- `test:api`: `jest --config jest.config.js`
-- `test:e2e`: `playwright test --config playwright.config.js`
+- `test/api/dueDateCrud.test.js` - Jest + Supertest, 37 tests
+- `test/e2e/dueDateUi.spec.js` - Playwright + Chromium, 19 tests
+- `qa/test-execution-results.md` - this report
 
-## API tests (Jest + Supertest) - 9 / 9 passed
+## Acceptance criteria coverage
 
-File: `test/api/sortByDueDate.test.js`. Each test authenticates through `/signup` and `/login` and sends the token in the `Authorization` header.
+| AC | API test(s) | E2E test(s) |
+|----|-------------|-------------|
+| 1 Create with due date | POST with dueDate returns and persists it | create sends `dueDate` in the POST body; card shows `Due: 2030-05-17` |
+| 2 Create without due date | POST without / `null` / `""` stores no `dueDate` | POST body has no dueDate; no `.todo-due-date` on the card |
+| 3 Edit shows existing due date | GET returns the stored value | edit modal `#edit-due-date` prefilled; undated todo opens blank; create form is reset |
+| 4 Update due date | PUT new date persists (GET + list) | PUT body carries the new date; card updates; persists after reload and prefills again |
+| 5 Clear due date | PUT `""` and PUT `null` remove the field | PUT body has `dueDate` `""`/null; line disappears; stays gone after reload; API record has no `dueDate` |
+| 6 Invalid due date (create) | 11 invalid inputs -> 400, `field: "dueDate"`, nothing created | 3 invalid values -> 400, `#todo-form-error` visible, modal open, no card created, nothing stored |
+| 7 Invalid due date (edit) | 11 invalid inputs -> 400, `field: "dueDate"`, todo unchanged | 3 invalid values -> 400, inline error, modal open, stored title and dueDate unchanged |
+| 8 Boundary: today | POST and PUT with today's date | create with today; shown on card and after reload |
 
-```
-Test Suites: 1 passed, 1 total
-Tests:       9 passed, 9 total
-```
+Additional checks: leap day accepted; `2027-02-29`, month 13, ISO timestamp, number/boolean/object types rejected; omitting `dueDate` on PUT keeps the existing value; auth required (401); another user's todo cannot be changed (404); error text clears on reopen; user can correct the date after an error and save.
 
-Per-test results (from `npx jest --config jest.config.js --json`, 9 total / 9 passed / 0 failed / 0 pending):
+## Notes on AC6/AC7 (read this)
 
-```
-PASSED - GET /todos?sort=dueDate AC2: due-dated todos are ordered earliest to latest
-PASSED - GET /todos?sort=dueDate AC3: todos without dueDate come after every todo with a dueDate
-PASSED - GET /todos?sort=dueDate tie-break: equal dueDates are ordered by id ascending
-PASSED - GET /todos?sort=dueDate tie-break: todos without dueDate are ordered by id ascending
-PASSED - GET /todos?sort=dueDate full order is deterministic across repeated requests
-PASSED - GET /todos?sort=dueDate ordering is kept after editing and toggling a todo (AC4, API level)
-PASSED - GET /todos?sort=dueDate requires authentication
-PASSED - default ordering (AC5 regression) GET /todos?sort=createdAt returns newest first
-PASSED - default ordering (AC5 regression) createdAt order differs from dueDate order
-```
+- A real `<input type="date">` cannot hold an unparseable string: Chromium sanitizes any invalid value to `""`. One E2E test asserts this. So the UI cannot be made to send an invalid date through the date control itself.
+- To exercise the app's validation path, the E2E tests switch `#edit-due-date` to `type="text"` through `page.evaluate` and enter the invalid value, as suggested in the QA request.
+- The AC text says "I cannot submit the form". Actual behavior: the form does submit, the server rejects it with 400 `{ field: "dueDate" }`, and the UI shows the error and keeps the modal open. The tests assert that real behavior (and that no data is created or changed), not a client-side block.
+- Sanity check that the tests detect a missing feature: with `public/script.js` temporarily reverted to the pre-KAN-155 version, 6 of 6 selected E2E tests (AC1, AC3, AC5, AC6 x3) failed. The file was restored afterwards; the commit contains no such change.
 
-Note: in this non-interactive shell the default `npm run test:api` output showed only the summary lines. The per-test names above come from an additional `--json` run of the same suite, which also gave 9 / 9.
+## Terminal output
 
-## E2E tests (Playwright + Chromium) - 8 / 8 passed
-
-File: `test/e2e/sortByDueDate.spec.js`. Each test signs up and logs in through the UI with a unique email. The todos with due dates are seeded through `POST /todos`, because the UI cannot set a due date.
+### API (`npm run test:api`)
 
 ```
-Running 8 tests using 1 worker
+> 02-nodejs@1.0.0 test:api
+> jest --config jest.config.js
 
-  ✓  1 [chromium] › sortByDueDate.spec.js:53:3 › AC1: sort dropdown shows a due date option (1.8s)
-  ✓  2 [chromium] › sortByDueDate.spec.js:61:3 › AC2 + AC3: due date sort orders earliest to latest with undated todos last (1.8s)
-  ✓  3 [chromium] › sortByDueDate.spec.js:68:3 › AC4: sorting persists after creating a todo (2.8s)
-  ✓  4 [chromium] › sortByDueDate.spec.js:84:3 › AC4: sorting persists after completing a todo (2.8s)
-  ✓  5 [chromium] › sortByDueDate.spec.js:95:3 › AC4: sorting persists after editing a todo (3.7s)
-  ✓  6 [chromium] › sortByDueDate.spec.js:108:3 › AC4: sorting persists after deleting a todo (2.7s)
-  ✓  7 [chromium] › sortByDueDate.spec.js:119:3 › AC5: switching back to the default sort restores createdAt ordering (1.7s)
-  ✓  8 [chromium] › sortByDueDate.spec.js:129:3 › AC5: Clear filters resets the due date sort to the default (1.9s)
-
-  8 passed (20.7s)
+Test Suites: 2 passed, 2 total
+Tests:       46 passed, 46 total
+Snapshots:   0 total
+Time:        1.342 s, estimated 2 s
+Ran all test suites.
 ```
 
-## Unit/client tests (node:test) - 18 / 18 passed
+Per file: `test/api/dueDateCrud.test.js` 37 passed (first dev run: `Tests: 37 passed, 37 total`), `test/api/sortByDueDate.test.js` 9 passed.
 
-Files: `test/dueDateSort.api.test.js` and `test/sortPersistence.client.test.js`. These were added earlier in the review-fix commit `cba12d0` and run as part of `npm test`.
+### E2E (`npm run test:e2e`)
+
+```
+Running 27 tests using 1 worker
+
+  ✓   1 ... KAN-155 due date in Create/Edit Todo UI › design: modal has an optional date input #edit-due-date and a hidden #todo-form-error (1.9s)
+  ✓   2 ... › AC1: create todo with due date sends dueDate and shows it on the card (2.3s)
+  ✓   3 ... › AC2: create todo without due date omits dueDate and shows no due line (2.4s)
+  ✓   4 ... › AC3: edit form is pre-populated with the existing due date; undated todo opens blank (4.8s)
+  ✓   5 ... › create form is reset after editing a dated todo (4.3s)
+  ✓   6 ... › AC4: update due date sends the new value, updates the card and persists after reload (5.8s)
+  ✓   7 ... › AC4: a due date can be added to a todo that had none (4.7s)
+  ✓   8 ... › AC5: clearing the due date sends an empty dueDate, removes the line and persists after reload (4.5s)
+  ✓   9 ... › AC8: today as the due date is sent, saved and displayed (2.5s)
+  ✓  10 ... › due line appears only on todos that have a due date (3.4s)
+  ✓  11 ... › native date control sanitizes unparseable strings to empty (cannot hold an invalid value) (1.9s)
+  ✓  12 ... › AC6: create with invalid due date "2025-02-30" shows an inline error, keeps the modal open and creates nothing (2.3s)
+  ✓  13 ... › AC6: create with invalid due date "not-a-date" ... (2.3s)
+  ✓  14 ... › AC6: create with invalid due date "2025/01/01" ... (2.3s)
+  ✓  15 ... › AC7: edit with invalid due date "2025-02-30" shows an inline error, keeps the modal open and saves nothing (4.3s)
+  ✓  16 ... › AC7: edit with invalid due date "not-a-date" ... (3.9s)
+  ✓  17 ... › AC7: edit with invalid due date "2025/01/01" ... (3.8s)
+  ✓  18 ... › validation error is cleared when the modal is reopened (2.5s)
+  ✓  19 ... › after an invalid-date error the user can correct the date and save (2.6s)
+  ✓  20-27 ... KAN-154 Sort by due date (8 regression tests)
+
+  27 passed (1.4m)
+```
+
+### Unit/client regression (`npm run test:unit`)
 
 ```
 ℹ tests 18
@@ -107,26 +132,3 @@ Files: `test/dueDateSort.api.test.js` and `test/sortPersistence.client.test.js`.
 ℹ cancelled 0
 ℹ skipped 0
 ```
-
-## Acceptance criteria mapping
-
-| AC | Covered by |
-|----|------------|
-| 1 Show sort option | E2E "AC1" |
-| 2 Ascending by due date | API "AC2"; E2E "AC2 + AC3" |
-| 3 Undated todos last | API "AC3"; E2E "AC2 + AC3" |
-| 4 Sort persists (create / edit / complete) | E2E "AC4" create, complete, edit, plus delete; API edit/toggle check; node:test client tests |
-| 5 Switch back to default | API "AC5 regression" (createdAt newest first); E2E "AC5" dropdown switch and "Clear filters" |
-
-## Test data strategy
-
-- **Isolation:** `todoServer.js` reads its JSON files from `TODO_DATA_DIR` (default: the repo folder, so `npm start` behaves as before). Tests never touch the real `todos.json`, `users.json` or `sessions.json`.
-  - Jest API tests use a fresh `os.tmpdir()` directory created with `mkdtemp`. The directory is removed in `afterAll`.
-  - E2E tests use `os.tmpdir()/todoapp-e2e-data-3101`. `test/e2e/start-test-server.js` recreates it empty at startup, and the global teardown deletes it.
-- **Importability:** `todoServer.js` exports `app` and only calls `listen` when run directly (`require.main === module`). Supertest imports it without binding a port.
-- **E2E server:** Playwright's `webServer` starts `node test/e2e/start-test-server.js` on port **3101** (override with `E2E_PORT`) with `reuseExistingServer: false`. Playwright stops it when the run ends. Playwright output goes to `os.tmpdir()`, so the repo's `test-results/` folder is not used.
-- **Users:** the API tests use `qa-<timestamp>@example.com`. The E2E tests use `qa-<uuid>@example.com`, one per test.
-- **Data shape:** the API tests seed due dates `2026-12-31`, `2026-01-05`, and two on `2026-06-01` (tie), plus todos with no due date. The E2E tests seed `2026-12-31` and two on `2026-01-05` (tie), plus one undated todo. Each signup also adds an undated "Welcome" todo.
-- **Selectors:** the app already has stable element ids and classes, so no `data-testid` attributes or other HTML changes were needed.
-- **Sensitivity check:** I ran both suites with the comparator and the `dueDate` option deliberately broken. The API suite failed 4 of 9 tests, and the E2E suite failed 8 of 8. I restored the files, and the suites pass on the tested commit.
-- **Out of scope for this run:** only Chromium was run, with no other browsers or viewport sizes. No manual exploratory testing was done.
