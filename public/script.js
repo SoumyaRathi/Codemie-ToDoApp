@@ -91,7 +91,14 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (element.dueDate) {
+      const due = document.createElement('div');
+      due.className = 'todo-due-date';
+      due.textContent = `Due: ${element.dueDate}`;
+      card.append(due);
+    }
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -104,12 +111,26 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-due-date').value = '';
+  clearTodoFormError();
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
   modal.setAttribute('aria-hidden', 'false');
   modal.style.display = 'flex';
   setTimeout(() => document.getElementById('edit-title').focus(), 100);
+}
+
+function showTodoFormError(message) {
+  const el = document.getElementById('todo-form-error');
+  el.textContent = message;
+  el.style.display = 'block';
+}
+
+function clearTodoFormError() {
+  const el = document.getElementById('todo-form-error');
+  el.textContent = '';
+  el.style.display = 'none';
 }
 
 function openEditModal(todo) {
@@ -119,6 +140,8 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-due-date').value = todo.dueDate || '';
+  clearTodoFormError();
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -259,46 +282,37 @@ document.addEventListener('DOMContentLoaded', function() {
       // Optionally show a message in the UI, but do not use alert
       return;
     }
+    const dueDate = document.getElementById('edit-due-date').value;
+    clearTodoFormError();
     setLoading(true);
+    let url, method, payload;
     if (isEditMode && editingTodoId) {
-      // Update
-      fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
-      })
-        .then(async resp => {
-          if (!resp.ok) return;
-          const contentType = resp.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            await resp.json();
-          }
-        })
-        .then(() => {
-          closeEditModal();
-          fetchAndRenderTodos();
-        })
-        .catch(err => { console.error(err); });
+      url = `${API_BASE}/todos/${editingTodoId}`;
+      method = 'PUT';
+      payload = { title, description, completed, dueDate: dueDate ? dueDate : '' };
     } else {
-      // Create
-      fetchWithAuth(`${API_BASE}/todos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
-      })
-        .then(async resp => {
-          if (!resp.ok) return;
-          const contentType = resp.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            await resp.json();
-          }
-        })
-        .then(() => {
-          closeEditModal();
-          fetchAndRenderTodos();
-        })
-        .catch(err => { console.error(err); });
+      url = `${API_BASE}/todos`;
+      method = 'POST';
+      payload = { title, description, completed: false, ...(dueDate ? { dueDate } : {}) };
     }
+    fetchWithAuth(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(async resp => {
+        const contentType = resp.headers.get('content-type');
+        const isJson = contentType && contentType.includes('application/json');
+        const data = isJson ? await resp.json() : null;
+        if (resp.status === 400 && data && data.field === 'dueDate') {
+          showTodoFormError(data.error || 'Invalid due date.');
+          fetchAndRenderTodos();
+          return;
+        }
+        closeEditModal();
+        fetchAndRenderTodos();
+      })
+      .catch(err => { console.error(err); });
   };
   window.addEventListener('keydown', function(e) {
     const modal = document.getElementById('edit-modal');
