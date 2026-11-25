@@ -60,6 +60,10 @@
           <textarea id="edit-desc" placeholder=" " required rows="3"></textarea>
           <label for="edit-desc">Description</label>
         </div>
+        <div class="input-field" id="due-date-field">
+          <input type="date" id="edit-due-date" />
+          <label for="edit-due-date">Due date (optional)</label>
+        </div>
         <div class="input-field" id="completed-checkbox-field" style="display:none;">
           <label for="edit-completed">Completed</label>
           <span class="toggle-switch">
@@ -67,6 +71,7 @@
             <span class="toggle-slider"></span>
           </span>
         </div>
+        <div id="todo-form-error" role="alert" style="display:none;"></div>
         <div class="action-btn">
           <button id="save-edit-btn" type="submit">Save</button>
         </div>
