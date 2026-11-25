@@ -2,112 +2,123 @@
 
 ## 1. Overview
 
-Implement KAN-154: add a "Sort by due date" option in the todos list UI. When selected, todos are ordered by due date ascending (earliest -> latest) and todos without a due date are placed after those with due dates. Sorting should persist while the user remains on the page (across create/edit/complete actions) and the user can switch back to the default sort.
+Implement KAN-156 "Add Due Date create/edit support in ToDo UI" by adding an optional due date field to the Add/Edit modal, sending it to the existing backend API (which already supports dueDate validation + persistence), and rendering due date on todo cards. No production refactors beyond what is required for this story.
 
-This phase adds planning documentation only (no production feature code).
+Data contract: dueDate is optional and stored as a string in YYYY-MM-DD format on the todo object.
 
 ## 2. Inputs & Traceability (Story key and URL)
 
-- Story: KAN-154 - Add "Sort by due date" option in todos list UI
-- URL: https://soumyarathi57.atlassian.net/browse/KAN-154
+- Story: KAN-156 - Add Due Date create/edit support in ToDo UI
+- URL: https://soumyarathi57.atlassian.net/browse/KAN-156
 
 ## 3. Planned File Edits (real repo paths only)
 
-- index.html
-  - Add a new sort dropdown option with value "dueDate".
-- public/script.js
-  - Ensure sort selection can be set to "dueDate" and is persisted in the existing client state (currentSort) while staying on page.
-  - Ensure re-fetch actions (create/edit/toggle) reuse currentSort.
-- todoServer.js
-  - Verify and, if needed, adjust GET /todos sorting logic for sort=dueDate to match acceptance criteria.
-- README.md (optional)
-  - Mention the new "Sort by Due date" option.
+- index.html -> add due date field to the Add/Edit To-Do modal form and an inline error container
+- public/script.js -> populate due date in edit mode, send dueDate on create/update, render due date on cards, and surface validation / API errors
+- public/styles.css -> style the new due date input, inline error, and due date display on cards
+- todoServer.js -> no change planned (already supports dueDate on POST/PUT and sort=dueDate)
 
 ## 4. Work Breakdown (outcome mapped to real files)
 
-- UI exposes "Sort by due date" option -> index.html
-- UI passes sort=dueDate and keeps selection across actions -> public/script.js
-- Backend ordering rules for dueDate (ascending; missing dueDate last; deterministic ties) -> todoServer.js
-- Docs update (optional) -> README.md
+- UI: Add due date input + error placeholder -> index.html
+  - Add a labeled input (type="date") with id "edit-due-date"
+  - Add a small error block in the todo modal (hidden by default), id "todo-error"
+
+- Create flow: send dueDate -> public/script.js
+  - Read dueDate from the input
+  - Include dueDate only when non-empty on POST /todos
+
+- Edit flow: prefill + update + clear dueDate -> public/script.js
+  - openEditModal(todo) sets edit-due-date value to todo.dueDate || ""
+  - On PUT /todos/:id include dueDate key
+  - If user clears due date (empty input) send dueDate: "" so backend removes it
+
+- Card rendering: show due date -> public/script.js + public/styles.css
+  - Render a "Due: YYYY-MM-DD" line only when element.dueDate exists
+
+- User-facing error behavior for create/edit failures -> public/script.js
+  - If POST/PUT response !ok, read JSON when possible and show data.error in todo-error
+  - Keep modal open and preserve current inputs
+  - If data.field == "dueDate" focus the due date input
 
 ## 5. Implementation Sequence
 
-1. Backend confirmation first (todoServer.js)
-   - Inspect GET /todos and confirm it accepts query param sort=dueDate.
-   - Confirm ordering rules:
-     - Earliest dueDate first.
-     - Todos without dueDate after all todos with dueDate.
-     - Deterministic tie-break for same dueDate (e.g., by id).
+1. index.html
+   - Add "Due date" field inside the Add/Edit todo modal form
+   - Add an inline error container for todo submit errors (todo-error)
 
-2. UI control (index.html)
-   - Add an option to the existing sort dropdown:
-     - value: dueDate
-     - label: Sort by Due date (or "Sort by Due Date" - keep consistent casing with existing options)
+2. public/script.js
+   - Reset due date and hide todo-error in openCreateModal()
+   - Prefill due date and hide todo-error in openEditModal(todo)
+   - Update todo-form onsubmit to:
+     - Read dueDate value from edit-due-date
+     - POST: include dueDate only when set
+     - PUT: always send dueDate (value or empty string for clearing)
+     - Handle non-OK responses by showing todo-error and not closing modal
+   - Update renderTodos() to display dueDate when present
 
-3. Frontend wiring and persistence (public/script.js)
-   - Confirm currentSort is included in the fetch URL (it already is).
-   - Confirm sort-select onchange sets currentSort to the option value.
-   - Confirm actions call fetchAndRenderTodos() (and do not reset currentSort):
-     - create todo
-     - edit todo
-     - toggle completion
-     - delete
-   - Confirm "Clear filters" resets sort to default (createdAt) and the dropdown reflects it.
-
-4. Optional docs (README.md)
-   - Update feature list or usage section to include "Sort by Due date".
+3. public/styles.css
+   - Style the due date input to match existing modal input styles
+   - Style the inline todo-error message (similar to auth error)
+   - Style the due date line on cards
 
 ## 6. QA Sequence
 
-Manual UI
-- Login -> navigate to todos list.
-- Verify sort dropdown includes "Sort by due date".
-- Select "Sort by due date" -> verify ordering is earliest -> latest for todos with dueDate.
-- Verify todos without dueDate appear after all dueDate todos.
-- While dueDate sort is active:
-  - Create a todo -> list remains sorted by due date.
-  - Edit a todo -> list remains sorted by due date.
-  - Mark complete/incomplete -> list remains sorted by due date.
-- Switch back to default sort -> verify list returns to default ordering.
+- Manual happy paths
+  - Create todo with due date -> due date displays on card and persists after refresh
+  - Create todo without due date -> no due date shown
+  - Edit todo to add a due date -> persists and displays
+  - Edit todo to change due date -> persists and displays updated value
+  - Edit todo to clear due date -> due date removed and stays removed after refresh
 
-API
-- Call GET /todos?sort=dueDate with Authorization header.
-- Verify ordering and missing-dueDate placement.
-
-Regression
-- Verify other sort options still work (createdAt, updatedAt, title).
-- Verify search/filter still work in combination with sorting.
+- Negative paths
+  - Send invalid dueDate via devtools (e.g., "2025-02-30") on POST/PUT -> expect 400; UI shows error; modal stays open; values preserved
+  - Simulate server/network error -> UI shows user-facing error; no silent failure
 
 ## 7. Risks / Mitigations
 
-- Risk: dueDate values inconsistent formats leading to incorrect ordering.
-  - Mitigation: server-side validation already expects YYYY-MM-DD; use consistent compare (string compare is valid for YYYY-MM-DD).
+- Risk: Clearing due date does not work if client omits dueDate field.
+  - Mitigation: On edit submit, always send dueDate key; send "" when empty.
 
-- Risk: ordering becomes unstable when multiple todos share same dueDate.
-  - Mitigation: ensure comparator adds deterministic tie-break (id).
+- Risk: Existing create/edit handlers ignore non-OK responses and close the modal anyway.
+  - Mitigation: Gate closeEditModal() behind resp.ok; display todo-error otherwise.
 
-- Risk: UI option value mismatch with backend (e.g., "due_date" vs "dueDate").
-  - Mitigation: use value exactly "dueDate" to match server handling.
+- Risk: Date/timezone confusion.
+  - Mitigation: Use YYYY-MM-DD everywhere; treat as a date-only field (backend already expects this).
 
 ## 8. Acceptance Criteria (Gherkin) mapping
 
-Scenario 1: Show sort option
-- UI control added in index.html and recognized by public/script.js.
+- Create todo with due date
+  - index.html: edit-due-date input
+  - public/script.js: POST includes dueDate
+  - public/script.js: renderTodos shows dueDate
 
-Scenario 2: Sort by due date ascending
-- todoServer.js: GET /todos comparator for sort=dueDate sorts earliest -> latest.
+- Create todo without due date
+  - public/script.js: POST omits dueDate when empty
+  - public/script.js: conditional rendering hides due date line
 
-Scenario 3: Todos without due date handled consistently
-- todoServer.js: comparator places missing dueDate after dueDate-present todos.
+- Edit todo to add due date
+  - public/script.js: PUT sends dueDate for empty -> set
 
-Scenario 4: Sorting persists while staying on page
-- public/script.js: actions re-fetch using currentSort without resetting it.
+- Edit todo to change due date
+  - public/script.js: PUT sends updated dueDate
 
-Scenario 5: Switching back to default sorting
-- public/script.js: allow selecting default option (createdAt) and clear-filters resets to createdAt.
+- Edit todo to clear due date
+  - public/script.js: PUT sends dueDate: ""; todoServer.js clears it
+
+- Validation prevents invalid due date
+  - todoServer.js: returns 400 { error, field: "dueDate" }
+  - public/script.js: shows inline error and preserves input
+
+- API error on create with due date shows error
+  - public/script.js: handles non-OK POST, show todo-error, keep modal open
+
+- API error on edit due date shows error and preserves input
+  - public/script.js: handles non-OK PUT, show todo-error, keep modal open
 
 ## 9. Handoff Summary
 
-- Small surface-area change: one new dropdown option plus verification of server sort behavior.
-- No schema/migration required because dueDate is optional.
-- Key validation points: ordering rules, missing dueDate placement, and persistence across in-page actions.
+- Adds optional due date input to the Add/Edit todo modal.
+- Sends dueDate to existing backend endpoints; supports clearing due date during edit.
+- Displays due date on todo cards.
+- Adds user-facing error display for create/edit failures relevant to dueDate acceptance criteria.
