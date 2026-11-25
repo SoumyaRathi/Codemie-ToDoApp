@@ -67,6 +67,13 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date (only when set)
+    let dueDate = null;
+    if (element.dueDate) {
+      dueDate = document.createElement('div');
+      dueDate.className = 'todo-due-date';
+      dueDate.textContent = `Due: ${element.dueDate}`;
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +98,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueDate) card.append(dueDate);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -104,6 +113,8 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-due-date').value = '';
+  clearTodoError();
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,12 +130,27 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-due-date').value = todo.dueDate || '';
+  clearTodoError();
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
   modal.setAttribute('aria-hidden', 'false');
   modal.style.display = 'flex';
   setTimeout(() => document.getElementById('edit-title').focus(), 100);
+}
+
+function clearTodoError() {
+  const errorEl = document.getElementById('todo-error');
+  errorEl.textContent = '';
+  errorEl.style.display = 'none';
+}
+
+function showTodoError(message, field) {
+  const errorEl = document.getElementById('todo-error');
+  errorEl.textContent = message;
+  errorEl.style.display = 'block';
+  if (field === 'dueDate') document.getElementById('edit-due-date').focus();
 }
 
 // --- AUTH LOGIC ---
@@ -255,50 +281,46 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const dueDate = document.getElementById('edit-due-date').value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
     }
+    clearTodoError();
+    const isUpdate = isEditMode && editingTodoId;
+    const url = isUpdate ? `${API_BASE}/todos/${editingTodoId}` : `${API_BASE}/todos`;
+    // Edit always sends dueDate ('' clears it server-side); create omits it when empty.
+    const payload = isUpdate
+      ? { title, description, completed, dueDate: dueDate || '' }
+      : { title, description, completed: false, ...(dueDate ? { dueDate } : {}) };
+    const failWith = (message, field) => {
+      renderTodos(currentTodos);
+      showTodoError(message, field);
+    };
     setLoading(true);
-    if (isEditMode && editingTodoId) {
-      // Update
-      fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
-      })
-        .then(async resp => {
-          if (!resp.ok) return;
-          const contentType = resp.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            await resp.json();
-          }
-        })
-        .then(() => {
+    fetchWithAuth(url, {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(async resp => {
+        if (resp.ok) {
           closeEditModal();
           fetchAndRenderTodos();
-        })
-        .catch(err => { console.error(err); });
-    } else {
-      // Create
-      fetchWithAuth(`${API_BASE}/todos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+          return;
+        }
+        let data = null;
+        try { data = await resp.json(); } catch (_) { /* non-JSON error body */ }
+        const useServerMessage = resp.status < 500 && data && data.error;
+        failWith(
+          useServerMessage ? data.error : `Could not ${isUpdate ? 'update' : 'create'} the to-do. Please try again.`,
+          data && data.field
+        );
       })
-        .then(async resp => {
-          if (!resp.ok) return;
-          const contentType = resp.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            await resp.json();
-          }
-        })
-        .then(() => {
-          closeEditModal();
-          fetchAndRenderTodos();
-        })
-        .catch(err => { console.error(err); });
-    }
+      .catch(err => {
+        console.error(err);
+        failWith('Network error. Please check your connection and try again.');
+      });
   };
   window.addEventListener('keydown', function(e) {
     const modal = document.getElementById('edit-modal');
