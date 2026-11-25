@@ -281,9 +281,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
-    const dueDate = document.getElementById('edit-due-date').value;
+    const dueDateInput = document.getElementById('edit-due-date');
+    const dueDate = dueDateInput.value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
+      return;
+    }
+    // badInput leaves value === '' for partial/impossible dates, so check validity, not just value.
+    if (!dueDateInput.validity.valid) {
+      showTodoError('Please enter a valid due date (YYYY-MM-DD).', 'dueDate');
       return;
     }
     clearTodoError();
