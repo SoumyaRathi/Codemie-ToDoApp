@@ -160,6 +160,13 @@ html, body {
   color: #bbb;
   margin-top: 0.2em;
 }
+.output .todo-due-date {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #5b6ee1;
+  margin: 0.1em 0 0.3em 0;
+  overflow-wrap: anywhere;
+}
 .output .todo-actions {
   display: flex;
   gap: 0.5rem;
@@ -274,7 +281,7 @@ html, body {
   flex-direction: column;
   padding: 18px 0 8px 0;
 }
-.input-field input[type="text"], .input-field input[type="password"], .input-field input[type="email"], .input-field textarea {
+.input-field input[type="text"], .input-field input[type="password"], .input-field input[type="email"], .input-field input[type="date"], .input-field textarea {
   background: rgba(255,255,255,0.18);
   border: 1px solid #a1c4fd;
   border-radius: 10px;
@@ -287,7 +294,7 @@ html, body {
   transition: border 0.2s, box-shadow 0.2s, background 0.2s;
   resize: vertical;
 }
-.input-field input[type="text"]:focus, .input-field input[type="password"]:focus, .input-field input[type="email"]:focus, .input-field textarea:focus {
+.input-field input[type="text"]:focus, .input-field input[type="password"]:focus, .input-field input[type="email"]:focus, .input-field input[type="date"]:focus, .input-field textarea:focus {
   border: 1px solid #5b6ee1;
   background: rgba(255,255,255,0.32);
   box-shadow: 0 4px 16px 0 rgba(91,110,225,0.13);
@@ -310,7 +317,8 @@ html, body {
 .input-field input[type="password"]:focus + label,
 .input-field input[type="password"]:not(:placeholder-shown) + label,
 .input-field input[type="email"]:focus + label,
-.input-field input[type="email"]:not(:placeholder-shown) + label {
+.input-field input[type="email"]:not(:placeholder-shown) + label,
+.input-field input[type="date"] + label {
   top: -0.7em;
   left: 0.9em;
   font-size: 0.88em;
@@ -387,6 +395,16 @@ html, body {
 }
 .toggle-switch input:checked + .toggle-slider:before {
   transform: translateX(20px);
+}
+
+/* Inline error for the Add/Edit todo modal (hidden until JS shows it) */
+#todo-error {
+  display: none;
+  color: #c00;
+  font-size: 0.95em;
+  line-height: 1.35;
+  margin: 0.6em 0 0.2em 0;
+  text-align: center;
 }
 
 /* Modal action button styles */

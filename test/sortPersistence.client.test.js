@@ -17,6 +17,7 @@ function makeElement() {
     textContent: '',
     innerHTML: '',
     checked: false,
+    validity: { valid: true },
     selectedOptions: [{ text: 'Sort by Due date' }],
     classList: { add() {}, remove() {} },
     parentNode: { insertBefore() {} },
