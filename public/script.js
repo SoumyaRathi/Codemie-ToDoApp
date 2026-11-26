@@ -57,6 +57,12 @@ function clearDueDateError() {
   el.style.display = 'none';
 }
 
+function syncDueDateLabel() {
+  const input = document.getElementById('edit-due-date');
+  if (input.value) input.classList.add('has-value');
+  else input.classList.remove('has-value');
+}
+
 function isValidDueDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const d = new Date(`${value}T00:00:00Z`);
@@ -134,6 +140,7 @@ function openCreateModal() {
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
   document.getElementById('edit-due-date').value = '';
+  syncDueDateLabel();
   clearDueDateError();
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
@@ -151,6 +158,7 @@ function openEditModal(todo) {
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
   document.getElementById('edit-due-date').value = todo.dueDate || '';
+  syncDueDateLabel();
   clearDueDateError();
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
@@ -282,6 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('close-modal').onclick = closeEditModal;
   // Remove the onclick handler for save-edit-btn
   document.getElementById('save-edit-btn').onclick = null;
+  document.getElementById('edit-due-date').oninput = syncDueDateLabel;
   // Add onsubmit handler for todo-form
   document.getElementById('todo-form').onsubmit = function(e) {
     e.preventDefault();

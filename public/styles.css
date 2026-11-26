@@ -322,7 +322,8 @@ html, body {
 .input-field input[type="password"]:not(:placeholder-shown) + label,
 .input-field input[type="email"]:focus + label,
 .input-field input[type="email"]:not(:placeholder-shown) + label,
-.input-field input[type="date"] + label {
+.input-field input[type="date"]:focus + label,
+.input-field input[type="date"].has-value + label {
   top: -0.7em;
   left: 0.9em;
   font-size: 0.88em;
