@@ -1,113 +1,195 @@
 # ToDoApp - Implementation Plan
 
 ## 1. Overview
+This plan implements KAN-157: password reset ("forgot password") flow.
 
-Implement KAN-154: add a "Sort by due date" option in the todos list UI. When selected, todos are ordered by due date ascending (earliest -> latest) and todos without a due date are placed after those with due dates. Sorting should persist while the user remains on the page (across create/edit/complete actions) and the user can switch back to the default sort.
+The implementation adds:
+- Backend endpoints to request a password reset and to confirm it using a time-limited reset token.
+- Frontend UI (inside the existing auth modal) for requesting a reset and for setting a new password.
 
-This phase adds planning documentation only (no production feature code).
+Constraints / notes:
+- No real email delivery in this scope. The system returns a generic success message to avoid account enumeration.
+- For local/dev usability, the API may return the reset token when NODE_ENV != "production" (documented and guarded).
 
-## 2. Inputs & Traceability (Story key and URL)
-
-- Story: KAN-154 - Add "Sort by due date" option in todos list UI
-- URL: https://soumyarathi57.atlassian.net/browse/KAN-154
+## 2. Inputs & Traceability
+- Story key: KAN-157
+- Story title: Implement password reset ("forgot password") flow
+- Story URL: https://soumyarathi57.atlassian.net/browse/KAN-157
 
 ## 3. Planned File Edits (real repo paths only)
-
-- index.html
-  - Add a new sort dropdown option with value "dueDate".
-- public/script.js
-  - Ensure sort selection can be set to "dueDate" and is persisted in the existing client state (currentSort) while staying on page.
-  - Ensure re-fetch actions (create/edit/toggle) reuse currentSort.
 - todoServer.js
-  - Verify and, if needed, adjust GET /todos sorting logic for sort=dueDate to match acceptance criteria.
-- README.md (optional)
-  - Mention the new "Sort by Due date" option.
+  - Add reset-token storage helpers (read/write JSON)
+  - Add routes:
+    - POST /password-reset/request
+    - POST /password-reset/confirm
+  - Add validation and token lifecycle utilities
+- index.html
+  - Add "Forgot password?" entry point on Login
+  - Add reset-request and reset-confirm panels (forms) in the auth modal
+- public/script.js
+  - Add auth modal mode/state handling for reset screens
+  - Add fetch calls to new endpoints + inline error/success messaging
+- public/styles.css
+  - Style new auth modal sections and link/button text
+- (Optional new file) passwordResets.json
+  - New JSON store for reset tokens (recommended to avoid mutating users.json schema)
 
 ## 4. Work Breakdown (outcome mapped to real files)
+1) Persist password reset tokens
+- File(s): todoServer.js (+ passwordResets.json)
+- Outcome:
+  - Add PASSWORD_RESETS_FILE constant
+  - Implement readPasswordResets()/writePasswordResets()
+  - Token record schema:
+    - { "<token>": { "userId": <number>, "expiresAt": "<ISO string>" } }
 
-- UI exposes "Sort by due date" option -> index.html
-- UI passes sort=dueDate and keeps selection across actions -> public/script.js
-- Backend ordering rules for dueDate (ascending; missing dueDate last; deterministic ties) -> todoServer.js
-- Docs update (optional) -> README.md
+2) Request password reset
+- File(s): todoServer.js
+- Outcome:
+  - POST /password-reset/request
+  - Input: { email }
+  - Behavior:
+    - If email missing -> 400 { error: "Email required." }
+    - Always respond with 200 generic message to avoid user enumeration
+    - If user exists, create token + expiry and persist it
+    - Optional (dev-only) include token in response: { message, token }
+
+3) Confirm password reset
+- File(s): todoServer.js
+- Outcome:
+  - POST /password-reset/confirm
+  - Input: { token, newPassword, confirmPassword }
+  - Behavior:
+    - Missing fields -> 400
+    - newPassword != confirmPassword -> 400 { error, field: "confirmPassword" }
+    - Invalid/expired token -> 400 (or 401) { error: "Invalid or expired token." }
+    - Update users.json password hash (sha256, consistent with existing logic)
+    - Invalidate token (remove from passwordResets.json)
+    - Return 200 { message: "Password reset successful." }
+
+4) Add frontend entry point and reset forms
+- File(s): index.html
+- Outcome:
+  - Add a "Forgot password?" link in the login portion of the auth modal
+  - Add two panels:
+    - Reset request panel: email input + submit + back-to-login link
+    - Reset confirm panel: token + new password + confirm password + submit + back-to-login link
+
+5) Frontend modal state machine + API wiring
+- File(s): public/script.js
+- Outcome:
+  - Add modal modes:
+    - login
+    - signup
+    - reset-request
+    - reset-confirm
+  - Add UI functions:
+    - showAuthModal(mode) or extend existing showAuthModal(isSignup) into a more explicit mode handler
+    - showResetRequest(), showResetConfirm()
+  - Add submit handlers:
+    - reset-request form submit -> POST /password-reset/request
+    - reset-confirm form submit -> POST /password-reset/confirm
+  - Add client-side validation:
+    - email non-empty
+    - newPassword non-empty (and optional min length)
+    - confirmPassword matches newPassword
+  - Error handling:
+    - Display inline messages (reuse #auth-error or introduce new containers per panel)
+    - Network failures -> "Network error."
+
+6) Styling
+- File(s): public/styles.css
+- Outcome:
+  - Add styles for:
+    - "Forgot password?" link
+    - panel visibility toggling
+    - success message vs error message
 
 ## 5. Implementation Sequence
-
-1. Backend confirmation first (todoServer.js)
-   - Inspect GET /todos and confirm it accepts query param sort=dueDate.
-   - Confirm ordering rules:
-     - Earliest dueDate first.
-     - Todos without dueDate after all todos with dueDate.
-     - Deterministic tie-break for same dueDate (e.g., by id).
-
-2. UI control (index.html)
-   - Add an option to the existing sort dropdown:
-     - value: dueDate
-     - label: Sort by Due date (or "Sort by Due Date" - keep consistent casing with existing options)
-
-3. Frontend wiring and persistence (public/script.js)
-   - Confirm currentSort is included in the fetch URL (it already is).
-   - Confirm sort-select onchange sets currentSort to the option value.
-   - Confirm actions call fetchAndRenderTodos() (and do not reset currentSort):
-     - create todo
-     - edit todo
-     - toggle completion
-     - delete
-   - Confirm "Clear filters" resets sort to default (createdAt) and the dropdown reflects it.
-
-4. Optional docs (README.md)
-   - Update feature list or usage section to include "Sort by Due date".
+1. Backend: add passwordResets.json helpers and token lifecycle utilities in todoServer.js
+2. Backend: implement POST /password-reset/request with generic response and dev-only token return
+3. Backend: implement POST /password-reset/confirm with validation, password update, token invalidation
+4. Frontend: extend index.html auth modal with reset panels + navigation links
+5. Frontend: update public/script.js to manage auth modal modes and call new endpoints
+6. Frontend: add/adjust CSS in public/styles.css
+7. Manual QA pass following Section 6
 
 ## 6. QA Sequence
+- Pre-check: existing flows
+  - Signup, login, logout still work
+  - Auth token still required for /todos
 
-Manual UI
-- Login -> navigate to todos list.
-- Verify sort dropdown includes "Sort by due date".
-- Select "Sort by due date" -> verify ordering is earliest -> latest for todos with dueDate.
-- Verify todos without dueDate appear after all dueDate todos.
-- While dueDate sort is active:
-  - Create a todo -> list remains sorted by due date.
-  - Edit a todo -> list remains sorted by due date.
-  - Mark complete/incomplete -> list remains sorted by due date.
-- Switch back to default sort -> verify list returns to default ordering.
+- Password reset request
+  - Missing email -> UI blocks; server returns 400 if bypassed
+  - Unknown email -> 200 generic message, no account enumeration
+  - Known email -> 200 generic message; in dev, token returned
 
-API
-- Call GET /todos?sort=dueDate with Authorization header.
-- Verify ordering and missing-dueDate placement.
+- Password reset confirm
+  - Missing fields -> 400 and UI shows error
+  - Password mismatch -> UI validation + server 400
+  - Invalid token -> UI shows "Invalid or expired token."
+  - Expired token -> same error
+  - Valid token -> password updated; login works with new password, fails with old password
 
-Regression
-- Verify other sort options still work (createdAt, updatedAt, title).
-- Verify search/filter still work in combination with sorting.
+- Resilience
+  - Stop server / simulate network error -> UI shows "Network error."
 
 ## 7. Risks / Mitigations
+- User enumeration risk
+  - Mitigation: always return 200 generic response from /password-reset/request
 
-- Risk: dueDate values inconsistent formats leading to incorrect ordering.
-  - Mitigation: server-side validation already expects YYYY-MM-DD; use consistent compare (string compare is valid for YYYY-MM-DD).
+- Token leakage risk
+  - Mitigation: only return token in response when NODE_ENV != "production"; avoid logging token
 
-- Risk: ordering becomes unstable when multiple todos share same dueDate.
-  - Mitigation: ensure comparator adds deterministic tie-break (id).
+- Token reuse / stale token risk
+  - Mitigation: store expiresAt; validate and delete token after success; optionally cleanup expired tokens on each request/confirm
 
-- Risk: UI option value mismatch with backend (e.g., "due_date" vs "dueDate").
-  - Mitigation: use value exactly "dueDate" to match server handling.
+- Storage/race risk with JSON files
+  - Mitigation: follow existing synchronous read/write pattern; minimize writes; handle write failures and return 500 errors
 
 ## 8. Acceptance Criteria (Gherkin) mapping
+- Forgot password link navigates to reset request screen
+  - index.html: link
+  - public/script.js: mode switch to reset-request
 
-Scenario 1: Show sort option
-- UI control added in index.html and recognized by public/script.js.
+- Submit reset request with valid identifier
+  - public/script.js -> todoServer.js POST /password-reset/request
 
-Scenario 2: Sort by due date ascending
-- todoServer.js: GET /todos comparator for sort=dueDate sorts earliest -> latest.
+- Submit reset request with missing identifier (validation)
+  - public/script.js: block submit and show message
+  - todoServer.js: 400 on missing email
 
-Scenario 3: Todos without due date handled consistently
-- todoServer.js: comparator places missing dueDate after dueDate-present todos.
+- Reset request handles unknown user (negative)
+  - todoServer.js: 200 generic message regardless of user existence
 
-Scenario 4: Sorting persists while staying on page
-- public/script.js: actions re-fetch using currentSort without resetting it.
+- Open reset password screen with token
+  - index.html: reset-confirm panel includes token input
+  - public/script.js: allow navigation to reset-confirm
 
-Scenario 5: Switching back to default sorting
-- public/script.js: allow selecting default option (createdAt) and clear-filters resets to createdAt.
+- Reset password succeeds with matching passwords
+  - todoServer.js: confirm updates users.json password
+  - public/script.js: route back to login with success banner
+
+- Reset password blocks when passwords do not match (validation)
+  - public/script.js validation + todoServer.js 400
+
+- Reset password handles invalid/expired token (negative)
+  - todoServer.js: invalid/expired token response
+  - public/script.js: display error
+
+- Network/server error handling (boundary/negative)
+  - public/script.js: catch() and inline "Network error."
 
 ## 9. Handoff Summary
+- Deliverables
+  - New password reset endpoints in todoServer.js
+  - New reset panels and navigation in index.html
+  - New JS logic in public/script.js to drive the flow
+  - Minor CSS updates in public/styles.css
+  - Optional new passwordResets.json file for token persistence
 
-- Small surface-area change: one new dropdown option plus verification of server sort behavior.
-- No schema/migration required because dueDate is optional.
-- Key validation points: ordering rules, missing dueDate placement, and persistence across in-page actions.
+- How to demo
+  - Signup/login -> logout
+  - Click "Forgot password?" -> request reset
+  - Use returned token (dev) in Reset Password screen
+  - Set new password -> login with new password
