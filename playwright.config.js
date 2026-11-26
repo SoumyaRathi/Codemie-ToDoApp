@@ -4,8 +4,8 @@ const { E2E_PORT, E2E_DATA_DIR, E2E_OUTPUT_DIR } = require('./test/e2e/paths');
 const baseURL = `http://localhost:${E2E_PORT}`;
 
 module.exports = defineConfig({
-  testDir: './test/e2e',
-  testMatch: '**/*.spec.js',
+  testDir: '.',
+  testMatch: ['test/e2e/**/*.spec.js', 'qa/e2e/**/*.spec.js'],
   outputDir: E2E_OUTPUT_DIR,
   globalTeardown: require.resolve('./test/e2e/global-teardown.js'),
   fullyParallel: false,
