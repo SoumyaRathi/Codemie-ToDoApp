@@ -60,6 +60,11 @@
           <textarea id="edit-desc" placeholder=" " required rows="3"></textarea>
           <label for="edit-desc">Description</label>
         </div>
+        <div class="input-field">
+          <input type="date" id="edit-due-date" name="dueDate" placeholder=" " />
+          <label for="edit-due-date">Due Date (optional)</label>
+          <div id="due-date-error" class="field-error" role="alert" style="display:none;"></div>
+        </div>
         <div class="input-field" id="completed-checkbox-field" style="display:none;">
           <label for="edit-completed">Completed</label>
           <span class="toggle-switch">
