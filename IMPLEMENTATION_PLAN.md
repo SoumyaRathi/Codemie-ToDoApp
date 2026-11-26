@@ -1,164 +1,174 @@
 # ToDoApp - Implementation Plan
 
 ## 1. Overview
+Implement KAN-159: add a secure "Change password" flow for authenticated users.
 
-This plan implements KAN-158: add Due Date support in the ToDo UI (input + display).
-
-Backend status (already implemented):
-- API accepts optional `dueDate` (string, YYYY-MM-DD) on POST /todos and PUT /todos/:id
-- API supports clearing `dueDate` when the client sends null or empty string
-- API returns `dueDate` in todo payloads and supports `sort=dueDate`
-
-UI work to implement:
-- Add Due Date input control to the Add/Edit To-Do modal
-- Send dueDate in create/update calls and support clearing it
-- Display dueDate on the todo card
-- Add client-side validation and inline error feedback
+Key behaviors:
+- Authenticated-only UI screen with form fields: current password, new password, confirm new password.
+- Backend authenticated endpoint verifies current password and updates stored password securely.
+- On success, invalidate current session and force re-login (old session must not remain usable).
+- Errors must be non-sensitive (no password values/hashes/stack traces).
 
 ## 2. Inputs & Traceability (Story key and URL)
-
-- Story key: KAN-158
-- Story title: Add Due Date field support in ToDo UI (input + display)
-- Story URL: https://soumyarathi57.atlassian.net/browse/KAN-158
+- Story key: KAN-159
+- Story title: Add Change Password feature for logged-in users
+- Story URL: https://soumyarathi57.atlassian.net/browse/KAN-159
 
 ## 3. Planned File Edits (real repo paths only)
+Backend:
+- todoServer.js
+- users.json
+- sessions.json
 
+Frontend:
 - index.html
-  - Add Due Date field to the existing Add/Edit To-Do modal form
-
 - public/script.js
-  - Read Due Date field in modal open/submit flows
-  - Include `dueDate` in POST /todos and PUT /todos/:id requests
-  - Allow clearing existing dueDate
-  - Render dueDate on todo cards
-  - Validate dueDate (YYYY-MM-DD) and show inline errors (including mapping server 400 field errors)
-
 - public/styles.css
-  - Style the Due Date field group in the modal
-  - Style dueDate display row/badge on todo cards
+
+Docs:
+- README.md (optional: document endpoint and UX)
 
 ## 4. Work Breakdown (outcome mapped to real files)
+1) Backend: add authenticated change-password endpoint
+- File: todoServer.js
+  - Add route, e.g. POST /change-password (exact path to be finalized based on existing routing conventions in file).
+  - Require authentication using the existing session mechanism (likely via session id/cookie stored in sessions.json).
+  - Validate request body: currentPassword, newPassword, confirmNewPassword (server may accept confirm and enforce match).
+  - Verify currentPassword matches the stored password for the authenticated user.
+  - Update the user's stored password.
+  - Invalidate active session(s) for this user (at minimum the current session) so user must log in again.
+  - Return safe error messages (no internal details).
 
-- Add Due Date input to modal
-  - index.html
-    - Add a new form field in `#todo-form`:
-      - `input type="date" id="edit-due-date" name="dueDate"`
-      - A label consistent with existing modal field patterns
+2) Backend: persist password update and session invalidation
+- Files: users.json, sessions.json
+  - Ensure password update is persisted.
+  - Ensure session invalidation is persisted (remove session entry or mark invalid).
 
-- Populate dueDate in Edit modal and clear in Create modal
-  - public/script.js
-    - openCreateModal(): set `#edit-due-date.value = ""`
-    - openEditModal(todo): set `#edit-due-date.value = todo.dueDate || ""`
+3) Frontend: add Change Password UI
+- Files: index.html, public/script.js
+  - Add navigation entry/button visible only when authenticated (based on existing auth state logic).
+  - Add Change Password form markup (or dynamically render) with:
+    - current password
+    - new password
+    - confirm new password
+  - Client-side validation:
+    - required fields
+    - new password equals confirm
+    - disable submit when invalid
+  - Call backend endpoint; display success/error.
+  - On success: clear auth state (cookie/local state as applicable), redirect to login, and show "please log in again" message.
 
-- Include dueDate in API requests
-  - public/script.js
-    - On create submit:
-      - Build request body with title/description/completed
-      - If due date value is non-empty: include `dueDate: <YYYY-MM-DD>`
-      - If empty: omit dueDate for create
-    - On edit submit:
-      - Always include `dueDate` either:
-        - `<YYYY-MM-DD>` to set/update, or
-        - `""` to clear (backend interprets as clear)
+4) Frontend: styling
+- File: public/styles.css
+  - Basic layout for Change Password form and validation messages consistent with existing UI.
 
-- Client-side validation and server error mapping
-  - public/script.js
-    - Validate dueDate string when non-empty:
-      - Regex: `^\d{4}-\d{2}-\d{2}$`
-      - (Optional) also validate with Date parsing to avoid impossible dates
-    - Show validation error inline near due date input (do not use alert)
-    - If server responds 400 with `{ field: "dueDate" }`, display that error next to due date input
-
-- Display dueDate on todo cards
-  - public/script.js
-    - In renderTodos(), create an element (e.g., div with class `todo-due-date`) if `element.dueDate` exists
-    - Display as `Due: YYYY-MM-DD` (avoid timezone conversions; treat as date-only)
-
-- Styling
-  - public/styles.css
-    - Add styles for `.todo-due-date`
-    - Ensure spacing and typography match existing card and modal styles
+5) Documentation
+- File: README.md
+  - Document endpoint, required auth, and the forced re-login behavior.
 
 ## 5. Implementation Sequence
+1) Inspect current auth/session flow
+- Read todoServer.js to identify:
+  - how login is handled
+  - how sessions are stored/validated (sessions.json)
+  - how current user is identified for authenticated requests
 
-1. Update index.html
-   - Add Due Date input field to modal form
-   - Ensure label association and ids are consistent
+2) Define API contract
+- Endpoint: POST /change-password (or align with existing /auth routes if present).
+- Request body:
+  - currentPassword: string
+  - newPassword: string
+  - confirmNewPassword: string (optional but recommended for server-side match enforcement)
+- Responses:
+  - 200: { message: "Password updated" } and server invalidates session
+  - 400: validation errors (missing fields, mismatch)
+  - 401/403: unauthenticated
+  - 400/401: wrong current password (use a safe message: "Current password is incorrect")
 
-2. Update public/script.js
-   - Add `edit-due-date` reset/populate in openCreateModal/openEditModal
-   - Extend todo-form onsubmit handler to include dueDate in request bodies
-   - Add client-side dueDate validation + inline error display
-   - Extend renderTodos() to show due date on cards
+3) Implement backend route
+- Add handler in todoServer.js:
+  - authenticate request
+  - validate body
+  - verify current password against stored value
+  - update user password
+  - invalidate session(s)
+  - return response
 
-3. Update public/styles.css
-   - Add styling for due date field group and due date display in cards
+4) Implement frontend UI and wiring
+- Update index.html and public/script.js:
+  - add UI entry point
+  - render form
+  - validations
+  - fetch POST to endpoint
+  - handle logout/redirection on success
 
-4. Manual verification
-   - Validate create/edit/clear/display across reloads
+5) Update docs
+- README.md
 
 ## 6. QA Sequence
+API tests (manual via curl/Postman):
+- Unauthenticated call to change-password endpoint -> 401/403.
+- Missing fields -> 400 with validation message(s).
+- New vs confirm mismatch -> client blocks submit; also verify server returns 400 if mismatch is sent.
+- Wrong current password -> 400/401 with "Current password is incorrect" and no other sensitive info.
+- Happy path:
+  - change password returns 200
+  - subsequent authenticated API calls using the old session should fail (session invalidated)
+  - login with old password fails
+  - login with new password succeeds
 
-- Regression
-  - Login/logout
-  - Create/edit/delete/toggle complete works as before
+UI tests (manual):
+- When logged in, Change Password option is visible and navigates to the form.
+- When logged out, Change Password option is not visible and cannot be accessed.
+- Form prevents submission when invalid and shows clear messages.
+- After successful change, user is forced to log in again.
 
-- Due date scenarios
-  - Create todo with due date -> due date visible on card and persists after refresh
-  - Create todo without due date -> no due date visible
-  - Edit todo: set due date -> updated due date visible
-  - Edit todo: clear due date -> due date removed
-
-- Validation
-  - Attempt invalid dueDate (simulate via devtools by setting an invalid string) -> client blocks submit or displays server 400 error
+Regression:
+- Existing login/logout, todo CRUD behaviors unaffected.
 
 ## 7. Risks / Mitigations
+- Risk: passwords appear to be stored in plain text (users.json) and current login logic may rely on that.
+  - Mitigation: Keep behavior consistent with current app design for now (do not introduce breaking hash change in this story). If hashing is already present, reuse the same algorithm.
 
-- Risk: Date-only values displayed incorrectly due to timezone conversion
-  - Mitigation: treat dueDate as a plain YYYY-MM-DD string; display as-is or format without converting to local time
+- Risk: session invalidation may be implemented inconsistently.
+  - Mitigation: centralize session removal in the same utility/path used by logout; add explicit test steps for session invalidation.
 
-- Risk: Clearing due date does not clear server-side value
-  - Mitigation: on edit, send `dueDate: ""` when input is empty (backend parseDueDate clears on empty string)
-
-- Risk: Browser differences for `input type="date"`
-  - Mitigation: keep regex validation as fallback; ensure server-side validation remains authoritative
+- Risk: Change Password page could be reachable without auth via direct UI manipulation.
+  - Mitigation: enforce both frontend guards and backend auth checks.
 
 ## 8. Acceptance Criteria (Gherkin) mapping
+Scenario 1: Navigate to Change Password when authenticated
+- index.html, public/script.js: add route/view and form fields.
 
-Note: The following maps to the Gherkin scenarios captured in KAN-158.
+Scenario 2: Change password successfully and force re-login
+- todoServer.js: update password + invalidate session
+- public/script.js: on success clear auth state and redirect
 
-- Create ToDo with due date
-  - index.html: Due Date field in modal
-  - public/script.js: POST body includes dueDate when provided
-  - public/script.js: renderTodos displays dueDate
+Scenario 3: Reject when current password is incorrect
+- todoServer.js: verify current password, return safe error
+- public/script.js: surface message
 
-- Create ToDo without due date
-  - public/script.js: POST omits dueDate when empty
-  - public/script.js: renderTodos hides dueDate row when missing
+Scenario 4: Reject when new password and confirmation do not match
+- public/script.js: client-side validation prevents submit
+- todoServer.js (optional): server-side mismatch handling if confirmNewPassword is included
 
-- Edit ToDo due date
-  - public/script.js: openEditModal pre-fills dueDate
-  - public/script.js: PUT includes dueDate value
+Scenario 5: Reject missing required fields
+- public/script.js: required validation
+- todoServer.js: required validation
 
-- Clear an existing due date
-  - public/script.js: PUT includes `dueDate: ""` when cleared
+Scenario 6: Endpoint requires authentication
+- todoServer.js: enforce auth middleware/check
 
-- Display due date from API response
-  - public/script.js: renderTodos reads element.dueDate and displays it
+Scenario 7: Old password no longer works after change
+- todoServer.js: persist updated password in users.json
+- Manual QA: login attempts
 
-- Reject invalid due date input
-  - public/script.js: client-side format validation + server 400 field mapping
-
-- Boundary - earliest allowed date
-  - index.html: optional `min` attribute (if product defines a min)
-  - public/script.js: format validation
-
-- Boundary - latest allowed date
-  - index.html: optional `max` attribute (if product defines a max)
-  - public/script.js: format validation
+Scenario 8: Do not leak sensitive info in error responses
+- todoServer.js: sanitize errors
+- public/script.js: do not display raw server traces
 
 ## 9. Handoff Summary
-
-- Primary files to change: index.html, public/script.js, public/styles.css
-- Contract: `dueDate` is a YYYY-MM-DD string; optional; cleared by sending empty string or null
-- Manual test checklist: create with due date, create without, edit set, edit clear, refresh, verify display and validation
+- Adds authenticated Change Password UI and backend endpoint.
+- Enforces validation and safe error handling.
+- Forces re-login by invalidating session after password change.
+- Files touched are limited to todoServer.js and existing static frontend assets (index.html, public/script.js, public/styles.css) plus optional README.md updates.
